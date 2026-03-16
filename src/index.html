@@ -1,11 +1,1018 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        Hello World
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>智能图集打包与拆分工具 (Cocos Format 3 完美版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; margin: 0; padding: 20px; color: #e0e0e0; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+        .container { max-width: 1600px; width: 100%; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); border: 1px solid #333; display: flex; flex-direction: column; flex: 1; overflow: hidden; box-sizing: border-box; }
+        h1 { text-align: center; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.3); margin-top: 0; font-size: 24px; margin-bottom: 20px; flex-shrink: 0; }
+        
+        .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
+        
+        .left-column { flex: 0 0 380px; min-width: 250px; display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
+        .resizer { width: 6px; background-color: #333; cursor: col-resize; border-radius: 3px; transition: background 0.2s; margin: 0 10px; flex-shrink: 0; }
+        .resizer:hover, .resizer.dragging { background-color: #3a86ff; box-shadow: 0 0 8px rgba(58, 134, 255, 0.5); }
+        .right-column { flex: 1; min-width: 400px; display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
+        
+        .panel { background-color: #252525; border-radius: 8px; padding: 15px; border: 1px solid #333; display: flex; flex-direction: column; }
+        .panel.flex-fill { flex: 1; overflow: hidden; }
+        .panel-title { font-size: 16px; color: #3a86ff; margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 8px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;}
+        
+        button { background-color: #3a86ff; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s ease; display: inline-block; }
+        button:hover:not(:disabled) { background-color: #256ce1; transform: translateY(-1px); }
+        button:disabled { background-color: #3a3a3a; color: #777; cursor: not-allowed; transform: none; }
+        .btn-green { background-color: #06d6a0; color: #000; }
+        .btn-green:hover:not(:disabled) { background-color: #05b586; }
+        .btn-red { background-color: #ef476f; color: #fff; padding: 6px 14px; font-size: 13px; white-space: nowrap; }
+        .btn-red:hover:not(:disabled) { background-color: #d9385e; }
+        .btn-yellow { background-color: #ffd166; color: #000; padding: 6px 14px; font-size: 13px; white-space: nowrap; }
+        .btn-yellow:hover:not(:disabled) { background-color: #e5bc5c; }
+        .btn-blue { background-color: #3a86ff; color: #fff; padding: 6px 14px; font-size: 13px; white-space: nowrap; }
+        .btn-blue:hover:not(:disabled) { background-color: #256ce1; }
+        input[type="file"] { display: none; }
+        
+        .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 10px; background: #121212; padding: 10px; border-radius: 8px; border: 1px inset #222; overflow-y: auto; flex: 1; align-content: start; }
+        .result-item { background-color: #1a1a1a; background-image: linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222), linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222); background-size: 12px 12px; background-position: 0 0, 6px 6px; border: 1px solid #444; padding: 6px; border-radius: 6px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+        .result-item img { max-width: 100%; max-height: 55px; display: block; margin: 0 auto; object-fit: contain; }
+        .result-item span { color: #ccc; font-size: 12px; display: block; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0,0,0,0.7); border-radius: 3px; padding: 2px; }
+        .item-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; z-index: 10; }
+        .item-actions button { padding: 2px 6px; font-size: 11px; min-width: auto; }
+        .item-actions .btn-red { padding: 2px 4px; font-size: 12px; font-weight: bold; }
+        
+        .settings-group { display: flex; flex-direction: column; gap: 12px; background: #1a1a1a; padding: 15px; border-radius: 6px; border: 1px solid #333; flex-shrink: 0; }
+        .setting-row { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+        .setting-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        input[type="text"] { width: 90px; padding: 5px 8px; border-radius: 4px; border: 1px solid #555; background: #333; color: white; outline: none; font-size: 13px; transition: border 0.2s;}
+        input[type="number"] { width: 50px; padding: 5px; border-radius: 4px; border: 1px solid #555; background: #333; color: white; outline: none; font-size: 13px; text-align: center; transition: border 0.2s;}
+        input:focus { border-color: #3a86ff; }
+        input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #3a86ff; margin: 0; }
+        label { cursor: pointer; user-select: none; }
+        
+        #canvas-wrapper { 
+            position: relative; border: 1px dashed #555; background-color: #1a1a1a;
+            background-image: linear-gradient(45deg, #242424 25%, transparent 25%, transparent 75%, #242424 75%, #242424), linear-gradient(45deg, #242424 25%, transparent 25%, transparent 75%, #242424 75%, #242424);
+            background-size: 24px 24px; background-position: 0 0, 12px 12px; overflow: hidden; flex: 1; border-radius: 6px; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        #atlas-canvas { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; cursor: grab; }
+        #atlas-canvas.grabbing { cursor: grabbing !important; }
+        
+        #zoom-label { position: absolute; bottom: 12px; right: 15px; background: rgba(0,0,0,0.85); color: #06d6a0; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; z-index: 10; pointer-events: none; border: 1px solid #444; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        /* 全局拖拽遮罩 */
+        #drag-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(18, 18, 18, 0.85); z-index: 9999; display: none;
+            justify-content: center; align-items: center; border: 4px dashed #3a86ff; box-sizing: border-box;
+            pointer-events: none;
+        }
+        #drag-overlay.active { display: flex; }
+        #drag-overlay h2 { color: #3a86ff; font-size: 32px; font-weight: normal; text-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+<div id="drag-overlay"><h2>📥 松开鼠标，立即加载资源到缓冲池</h2></div>
+<input type="file" id="global-upload" accept="image/png, image/jpeg, image/webp, .plist" multiple>
+
+<div class="container">
+    <h1>🧩 智能图集打包与拆分工具 (Cocos Format 3 完美版)</h1>
+    
+    <div class="main-layout">
+        <!-- 左侧栏 -->
+        <div class="left-column" id="left-col">
+            <div class="panel flex-fill">
+                <div class="panel-title">
+                    <span>1. 碎图缓冲池 (<span id="pool-count">0</span>)</span>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn-blue" onclick="document.getElementById('global-upload').click()">➕ 选素材</button>
+                        <button class="btn-yellow" id="btn-download-zip" disabled>打ZIP</button>
+                        <button class="btn-red" id="btn-clear-pool">清空</button>
+                    </div>
+                </div>
+                <div class="results" id="results">
+                    <div style="grid-column: 1 / -1; text-align: center; color: #666; margin-top: 50px; font-size: 14px;">
+                        直接将图片或 .plist 文件拖入网页任意位置即可加载
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="resizer" id="drag-resizer"></div>
+
+        <!-- 右侧栏 -->
+        <div class="right-column">
+            <div class="panel flex-fill">
+                <div class="panel-title">
+                    2. 实时打包预览与导出
+                    <div id="pack-status" style="font-size: 13px; color: #666; font-weight: normal;">等待资源...</div>
+                </div>
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-item"><label>导出前缀:</label><input type="text" id="setting-export-name" placeholder="atlas" value="atlas"></div>
+                        <div class="setting-item"><label>Max宽:</label><input type="number" id="setting-max-w" value="2048" step="128"></div>
+                        <div class="setting-item"><label>Max高:</label><input type="number" id="setting-max-h" value="2048" step="128"></div>
+                        <div class="setting-item"><label>间距:</label><input type="number" id="setting-padding" value="2" min="0" max="20"></div>
+                    </div>
+                    <div class="setting-row">
+                        <!-- 所有高级特性默认关闭，保证常规兼容性 -->
+                        <div class="setting-item"><input type="checkbox" id="setting-trim"><label for="setting-trim">✂️ 修剪透明像素</label></div>
+                        <div class="setting-item"><input type="checkbox" id="setting-rotate"><label for="setting-rotate">🔄 允许自动旋转</label></div>
+                        <div class="setting-item" title="扫描透明像素镂空处，允许把小图片塞进大图片的空隙内部！"><input type="checkbox" id="setting-concave"><label for="setting-concave">🧠 允许凹凸贴合</label></div>
+                        <div class="setting-item"><input type="checkbox" id="setting-polygon"><label for="setting-polygon">🕸️ 显示多边形网格</label></div>
+                        <div class="setting-item"><input type="checkbox" id="setting-show-bounds"><label for="setting-show-bounds">🟥 显示排版边界</label></div>
+                        
+                        <div style="flex-grow: 1; text-align: right; display: flex; gap: 8px; justify-content: flex-end;">
+                            <button id="btn-dl-png" class="btn-green" disabled>⬇️ 导出 .png</button>
+                            <button id="btn-dl-plist" class="btn-green" disabled>⬇️ 导出 .plist</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="canvas-wrapper" title="支持滚轮缩放，左键拖拽平移，双击自适应居中">
+                    <canvas id="atlas-canvas"></canvas>
+                    <div id="zoom-label">尺寸: 0 x 0 | 0 KB | 100%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    try {
+        let spritePool =[]; 
+        let spriteCounter = 0;
+        let currentAtlasPng = null;
+        let currentAtlasPlist = null;
+        let autoPackTimer = null; 
+        let currentAtlasSizeStr = "0 KB";
+
+        const uploadInput = document.getElementById('global-upload');
+        const resultsDiv = document.getElementById('results');
+        const poolCountSpan = document.getElementById('pool-count');
+        const packStatus = document.getElementById('pack-status');
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+        const canvas = document.getElementById('atlas-canvas');
+        const ctx = canvas.getContext('2d'); 
+        const zoomLabel = document.getElementById('zoom-label');
+        const btnDlPng = document.getElementById('btn-dl-png');
+        const btnDlPlist = document.getElementById('btn-dl-plist');
+        const btnDlZip = document.getElementById('btn-download-zip');
+        const resizer = document.getElementById('drag-resizer');
+        const leftCol = document.getElementById('left-col');
+        const dragOverlay = document.getElementById('drag-overlay');
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 KB';
+            const k = 1024, sizes =['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // --- 拉杆拖拽 ---
+        let isResizing = false;
+        resizer.onmousedown = function() {
+            isResizing = true; resizer.classList.add('dragging');
+            document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+        };
+        window.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            let newWidth = e.clientX - leftCol.getBoundingClientRect().left;
+            // 🔧 修复：去掉右侧拖动限制，只保留最小宽度限制，以右侧空档宽度为准（10px）
+            if (newWidth > 250) leftCol.style.flex = "0 0 " + newWidth + "px";
+        });
+        window.addEventListener('mouseup', function() {
+            if (isResizing) { isResizing = false; resizer.classList.remove('dragging'); document.body.style.cursor = 'default'; document.body.style.userSelect = 'auto'; }
+        });
+
+        // --- 画布交互 ---
+        let actualCanvasWidth = 0, actualCanvasHeight = 0;
+        let panX = 0, panY = 0, currentScale = 1;
+
+        function updateCanvasTransform() {
+            if (!actualCanvasWidth) return;
+            canvas.style.transform = "translate(" + panX + "px, " + panY + "px) scale(" + currentScale + ")";
+            zoomLabel.innerText = "尺寸: " + actualCanvasWidth + " x " + actualCanvasHeight + " | " + currentAtlasSizeStr + " | " + Math.round(currentScale * 100) + "%";
+        }
+
+        function centerCanvas() {
+            if (!actualCanvasWidth) return;
+            currentScale = Math.min((canvasWrapper.clientWidth - 40) / actualCanvasWidth, (canvasWrapper.clientHeight - 40) / actualCanvasHeight, 1);
+            panX = (canvasWrapper.clientWidth - actualCanvasWidth * currentScale) / 2;
+            panY = (canvasWrapper.clientHeight - actualCanvasHeight * currentScale) / 2;
+            updateCanvasTransform();
+        }
+
+        canvasWrapper.onwheel = function(e) {
+            if (!actualCanvasWidth) return; e.preventDefault(); 
+            const rect = canvasWrapper.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
+            let zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+            let newScale = Math.max(0.05, Math.min(currentScale * zoomFactor, 10));
+            panX = mouseX - (mouseX - panX) * (newScale / currentScale);
+            panY = mouseY - (mouseY - panY) * (newScale / currentScale);
+            currentScale = newScale; updateCanvasTransform();
+        };
+
+        let isDraggingCanvas = false, startCX, startCY, initialPanX, initialPanY;
+        canvas.onmousedown = function(e) {
+            if (!actualCanvasWidth) return;
+            isDraggingCanvas = true; canvas.classList.add('grabbing');
+            startCX = e.clientX; startCY = e.clientY; initialPanX = panX; initialPanY = panY;
+        };
+        window.addEventListener('mouseup', function() { isDraggingCanvas = false; canvas.classList.remove('grabbing'); });
+        window.addEventListener('mousemove', function(e) {
+            if (!isDraggingCanvas) return; e.preventDefault();
+            panX = initialPanX + (e.clientX - startCX); panY = initialPanY + (e.clientY - startCY); 
+            updateCanvasTransform();
+        });
+        canvasWrapper.ondblclick = centerCanvas;
+
+        // --- 实时防抖动重排 ---
+        function triggerAutoPack() {
+            clearTimeout(autoPackTimer);
+            autoPackTimer = setTimeout(function() {
+                if (spritePool.length > 0) {
+                    performPack();
+                } else { 
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                    actualCanvasWidth = 0; actualCanvasHeight = 0; currentAtlasSizeStr = "0 KB";
+                    btnDlPng.disabled = true; btnDlPlist.disabled = true; 
+                    packStatus.innerText = "等待资源..."; packStatus.style.color = "#666";
+                    zoomLabel.innerText = "尺寸: 0 x 0 | 0 KB | 100%";
+                }
+            }, 300);
+        }
+
+        const inputs = document.querySelectorAll('.settings-group input');
+        for (let i = 0; i < inputs.length; i++) {
+            inputs[i].addEventListener('input', triggerAutoPack);
+            inputs[i].addEventListener('change', triggerAutoPack);
+        }
+
+        // --- 碎图池管理 ---
+        function renderPool() {
+            if (spritePool.length === 0) {
+                resultsDiv.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #666; margin-top: 50px; font-size: 14px;">直接将图片或.plist文件拖入网页内...</div>';
+            } else {
+                resultsDiv.innerHTML = ''; 
+            }
+            poolCountSpan.innerText = spritePool.length; 
+            btnDlZip.disabled = spritePool.length === 0;
+            
+            for(let i = 0; i < spritePool.length; i++) {
+                const item = spritePool[i];
+                const div = document.createElement('div'); 
+                div.className = 'result-item';
+                
+                const imgNode = document.createElement('img'); imgNode.src = item.img.src;
+                const spanNode = document.createElement('span'); spanNode.title = item.name; spanNode.innerText = item.name;
+                const actionsDiv = document.createElement('div'); actionsDiv.className = 'item-actions';
+                
+                const btnSplit = document.createElement('button'); btnSplit.className = 'btn-yellow'; btnSplit.innerText = '拆';
+                btnSplit.onclick = function(e) { splitSprite(i, e); };
+                const btnDel = document.createElement('button'); btnDel.className = 'btn-red'; btnDel.innerText = '✕';
+                btnDel.onclick = function(e) { removeSprite(i, e); };
+                
+                actionsDiv.appendChild(btnSplit); actionsDiv.appendChild(btnDel);
+                div.appendChild(imgNode); div.appendChild(spanNode); div.appendChild(actionsDiv);
+                resultsDiv.appendChild(div);
+            }
+            triggerAutoPack();
+        }
+
+        window.removeSprite = function(index, event) { event.stopPropagation(); spritePool.splice(index, 1); renderPool(); };
+        document.getElementById('btn-clear-pool').onclick = function() { spritePool =[]; renderPool(); };
+
+        // --- 全局文件拖拽绑定 ---
+        let dragCounter = 0;
+        function preventDocDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        document.addEventListener('dragenter', function(e) {
+            preventDocDefaults(e); dragCounter++; dragOverlay.classList.add('active');
+        }, false);
+        document.addEventListener('dragover', preventDocDefaults, false);
+        document.addEventListener('dragleave', function(e) {
+            preventDocDefaults(e); dragCounter--;
+            if (dragCounter === 0) dragOverlay.classList.remove('active');
+        }, false);
+        document.addEventListener('drop', function(e) {
+            preventDocDefaults(e); dragCounter = 0; dragOverlay.classList.remove('active');
+            if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+        }, false);
+
+        uploadInput.addEventListener('change', function(e) { handleFiles(e.target.files); e.target.value = ''; }, false);
+
+        // --- 资源读取解析 ---
+        function handleFiles(files) {
+            if (!files || files.length === 0) return;
+            packStatus.innerText = "🔄 正在载入资源..."; packStatus.style.color = '#3a86ff';
+            
+            let images = [], plists =[];
+            for (let i = 0; i < files.length; i++) { 
+                if (files[i].name.indexOf('.plist') !== -1) plists.push(files[i]); 
+                else if (files[i].type.indexOf('image/') !== -1) images.push(files[i]); 
+            }
+            
+            let parsedPlists = {};
+            let plistPromises =[];
+
+            for (let i = 0; i < plists.length; i++) {
+                let p = new Promise(function(resolve) {
+                    let reader = new FileReader();
+                    reader.onload = function(e) {
+                        let text = e.target.result;
+                        let baseName = plists[i].name.replace(/\.[^/.]+$/, "");
+                        parsedPlists[baseName] = parseCocosPlist(text);
+                        resolve();
+                    };
+                    reader.readAsText(plists[i]);
+                });
+                plistPromises.push(p);
+            }
+
+            Promise.all(plistPromises).then(function() {
+                let imgPromises =[];
+                for (let i = 0; i < images.length; i++) {
+                    let imgFile = images[i];
+                    let baseName = imgFile.name.replace(/\.[^/.]+$/, ""); 
+                    let p = new Promise(function(resolve) {
+                        let img = new Image();
+                        img.onload = function() {
+                            if (parsedPlists[baseName]) { 
+                                unpackAtlas(img, parsedPlists[baseName], baseName).then(resolve);
+                            } else { 
+                                spriteCounter++; 
+                                spritePool.push({ id: spriteCounter, name: imgFile.name.indexOf('.png') !== -1 ? imgFile.name : imgFile.name + '.png', img: img }); 
+                                resolve();
+                            }
+                        };
+                        img.src = URL.createObjectURL(imgFile);
+                    });
+                    imgPromises.push(p);
+                }
+                Promise.all(imgPromises).then(function() { renderPool(); });
+            });
+        }
+
+        // --- 支持 Cocos Format 2 & 3 的健壮反向解析器 ---
+        function parseCocosPlist(xml) {
+            const doc = new DOMParser().parseFromString(xml, "text/xml"); 
+            let frames = {};
+            const keyNodes = doc.querySelectorAll('dict > key');
+            let framesKey = null;
+            for (let i = 0; i < keyNodes.length; i++) {
+                if (keyNodes[i].textContent === 'frames') { framesKey = keyNodes[i]; break; }
+            }
+            const framesNode = framesKey ? framesKey.nextElementSibling : null;
+            if (!framesNode || framesNode.tagName !== 'dict') return frames;
+            
+            let currentName = null;
+            for (let i = 0; i < framesNode.children.length; i++) {
+                let node = framesNode.children[i];
+                if (node.tagName === 'key') {
+                    currentName = node.textContent;
+                } else if (node.tagName === 'dict' && currentName) {
+                    let frameData = {}, propKey = null;
+                    for (let j = 0; j < node.children.length; j++) {
+                        let pNode = node.children[j];
+                        if (pNode.tagName === 'key') { propKey = pNode.textContent; } 
+                        else if (propKey) {
+                            frameData[propKey] = pNode.tagName === 'string' ? pNode.textContent : (pNode.tagName === 'true' ? true : (pNode.tagName === 'false' ? false : Number(pNode.textContent)));
+                            propKey = null;
+                        }
+                    }
+                    frames[currentName] = frameData; currentName = null;
+                }
+            }
+            return frames;
+        }
+        
+        function parseRect(str) {
+            if (!str) return {x:0, y:0, w:0, h:0}; 
+            let m = str.match(/{{\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*},\s*{(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*}}/); 
+            return m ? {x: parseFloat(m[1]), y: parseFloat(m[2]), w: parseFloat(m[3]), h: parseFloat(m[4])} : {x:0, y:0, w:0, h:0}; 
+        }
+        
+        function parseSize(str) {
+            if (!str) return {w:0, h:0}; 
+            let m = str.match(/{\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*}/); 
+            return m ? {w: parseFloat(m[1]), h: parseFloat(m[2])} : {w:0, h:0}; 
+        }
+
+        // 完美修复的旋转拆解器 (兼容处理了偏移逻辑)
+        function unpackAtlas(atlasImg, framesData, baseName) {
+            return new Promise(function(resolveMain) {
+                let keys = Object.keys(framesData);
+                let loadedCount = 0;
+                if(keys.length === 0) return resolveMain();
+
+                for (let i = 0; i < keys.length; i++) {
+                    let key = keys[i];
+                    let frame = framesData[key];
+                    
+                    let rotated = frame.rotated || frame.textureRotated || false;
+                    let physicalW, physicalH, logicalW, logicalH, trimX, trimY, origW, origH, atlasX, atlasY;
+
+                    // 判断是 Format 3 还是 Format 2
+                    if (frame.textureRect) {
+                        let tRect = parseRect(frame.textureRect);
+                        atlasX = tRect.x; atlasY = tRect.y;
+                        
+                        let sSize = parseSize(frame.spriteSize);
+                        logicalW = sSize.w; logicalH = sSize.h;
+                        
+                        let oSize = parseSize(frame.spriteSourceSize);
+                        origW = oSize.w; origH = oSize.h;
+                        
+                        // 🔧 修复：Format 3 中，当 textureRotated 为 true 时，
+                        // textureRect 的尺寸是逻辑尺寸，需要转换为物理尺寸
+                        if (rotated) {
+                            // textureRect 存储的是逻辑尺寸，旋转后物理尺寸需要交换
+                            physicalW = tRect.h;  // 逻辑高度变成物理宽度
+                            physicalH = tRect.w;  // 逻辑宽度变成物理高度
+                        } else {
+                            physicalW = tRect.w;
+                            physicalH = tRect.h;
+                        }
+                        
+                        let offset = parseSize(frame.spriteOffset);
+                        trimX = offset.w + origW / 2 - logicalW / 2;
+                        trimY = origH / 2 - offset.h - logicalH / 2;
+                    } else {
+                        // Format 2
+                        let fRect = parseRect(frame.frame);
+                        atlasX = fRect.x; atlasY = fRect.y; 
+                        logicalW = fRect.w; logicalH = fRect.h;
+                        physicalW = rotated ? logicalH : logicalW;
+                        physicalH = rotated ? logicalW : logicalH;
+                        
+                        let cRect = parseRect(frame.sourceColorRect);
+                        trimX = cRect.x; trimY = cRect.y;
+                        
+                        let oSize = parseSize(frame.sourceSize);
+                        origW = oSize.w; origH = oSize.h;
+                    }
+                    
+                    let c = document.createElement('canvas'); c.width = origW; c.height = origH; 
+                    let ctxSub = c.getContext('2d');
+                    
+                    if (rotated) { 
+                        ctxSub.save(); 
+                        // 还原旋转错位的核心矩阵变换
+                        ctxSub.translate(trimX, trimY + logicalH); 
+                        ctxSub.rotate(-90 * Math.PI / 180); 
+                        ctxSub.drawImage(atlasImg, atlasX, atlasY, physicalW, physicalH, 0, 0, physicalW, physicalH); 
+                        ctxSub.restore(); 
+                    } else { 
+                        ctxSub.drawImage(atlasImg, atlasX, atlasY, physicalW, physicalH, trimX, trimY, physicalW, physicalH); 
+                    }
+                    
+                    let newImg = new Image(); 
+                    newImg.onload = function() { 
+                        spriteCounter++; spritePool.push({ id: spriteCounter, name: key, img: newImg }); 
+                        loadedCount++; if (loadedCount === keys.length) resolveMain();
+                    }; 
+                    newImg.src = c.toDataURL('image/png'); 
+                }
+            });
+        }
+
+        // --- 算法提纯 ---
+        window.splitSprite = function(index, event) {
+            event.stopPropagation(); const sourceItem = spritePool[index];
+            packStatus.innerText = "⚙️ 正在提纯[" + sourceItem.name + "]..."; packStatus.style.color = '#ffd166';
+            
+            setTimeout(function() {
+                const img = sourceItem.img, w = img.naturalWidth, h = img.naturalHeight;
+                const tempCanvas = document.createElement('canvas'); tempCanvas.width = w; tempCanvas.height = h;
+                const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true }); tCtx.drawImage(img, 0, 0);
+                
+                const data = tCtx.getImageData(0, 0, w, h).data, visited = new Uint8Array(w * h), blobs =[];
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = y * w + x;
+                        if (visited[idx]) continue;
+                        if (data[idx * 4 + 3] > 10) {
+                            const blob = { minX: x, minY: y, maxX: x, maxY: y, pixels:[] }, queue =[{x: x, y: y}]; visited[idx] = 1;
+                            while (queue.length > 0) {
+                                const p = queue.shift();
+                                blob.minX = Math.min(blob.minX, p.x); blob.minY = Math.min(blob.minY, p.y);
+                                blob.maxX = Math.max(blob.maxX, p.x); blob.maxY = Math.max(blob.maxY, p.y);
+                                blob.pixels.push(p);
+                                for (let dy = -1; dy <= 1; dy++) {
+                                    for (let dx = -1; dx <= 1; dx++) {
+                                        if (dx === 0 && dy === 0) continue;
+                                        const nx = p.x + dx, ny = p.y + dy;
+                                        if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                                            const nIdx = ny * w + nx;
+                                            if (!visited[nIdx] && data[nIdx * 4 + 3] > 10) { visited[nIdx] = 1; queue.push({x: nx, y: ny}); }
+                                        }
+                                    }
+                                }
+                            }
+                            if (blob.pixels.length > 5) blobs.push(blob);
+                        }
+                    }
+                }
+                if (blobs.length === 0) return;
+                
+                spritePool.splice(index, 1); let subCount = 0;
+                
+                for (let bIdx = 0; bIdx < blobs.length; bIdx++) {
+                    let blob = blobs[bIdx], bWidth = blob.maxX - blob.minX + 1, bHeight = blob.maxY - blob.minY + 1;
+                    let bCanvas = document.createElement('canvas'); bCanvas.width = bWidth; bCanvas.height = bHeight;
+                    let bCtx = bCanvas.getContext('2d'), tData = bCtx.createImageData(bWidth, bHeight);
+                    for(let k = 0; k < blob.pixels.length; k++) {
+                        let p = blob.pixels[k], sIdx = (p.y * w + p.x) * 4, dIdx = ((p.y - blob.minY) * bWidth + (p.x - blob.minX)) * 4;
+                        tData.data[dIdx] = data[sIdx]; tData.data[dIdx+1] = data[sIdx+1]; tData.data[dIdx+2] = data[sIdx+2]; tData.data[dIdx+3] = data[sIdx+3];
+                    }
+                    bCtx.putImageData(tData, 0, 0);
+                    let newImg = new Image();
+                    newImg.onload = function() {
+                        spriteCounter++; subCount++;
+                        spritePool.push({ id: spriteCounter, name: blobs.length === 1 ? sourceItem.name : sourceItem.name.replace(/\.[^/.]+$/, "") + "_p" + bIdx + ".png", img: newImg });
+                        if (subCount === blobs.length) renderPool();
+                    };
+                    newImg.src = bCanvas.toDataURL('image/png');
+                }
+            }, 10);
+        };
+
+        // --- 多边形轮廓算法 ---
+        function buildPolygon(imgData, w, h, trimBox) {
+            let points = []; 
+            let step = 4;
+            
+            // 从上下左右四个方向扫描边界点
+            for (let y = trimBox.minY; y <= trimBox.maxY; y += step) {
+                for (let x = trimBox.minX; x <= trimBox.maxX; x++) { 
+                    if (imgData.data[(y * w + x) * 4 + 3] > 10) { 
+                        points.push({x: x - trimBox.minX, y: y - trimBox.minY}); 
+                        break; 
+                    } 
+                }
+                for (let x = trimBox.maxX; x >= trimBox.minX; x--) { 
+                    if (imgData.data[(y * w + x) * 4 + 3] > 10) { 
+                        points.push({x: x - trimBox.minX, y: y - trimBox.minY}); 
+                        break; 
+                    } 
+                }
+            }
+            for (let x = trimBox.minX; x <= trimBox.maxX; x += step) {
+                for (let y = trimBox.minY; y <= trimBox.maxY; y++) { 
+                    if (imgData.data[(y * w + x) * 4 + 3] > 10) { 
+                        points.push({x: x - trimBox.minX, y: y - trimBox.minY}); 
+                        break; 
+                    } 
+                }
+                for (let y = trimBox.maxY; y >= trimBox.minY; y--) { 
+                    if (imgData.data[(y * w + x) * 4 + 3] > 10) { 
+                        points.push({x: x - trimBox.minX, y: y - trimBox.minY}); 
+                        break; 
+                    } 
+                }
+            }
+            
+            // 如果没有足够的点，返回 null
+            if (points.length < 3) return null;
+            
+            // 对点进行排序（按 x 坐标，相同 x 时按 y 坐标）
+            points.sort(function(a, b) { 
+                return a.x === b.x ? a.y - b.y : a.x - b.x; 
+            });
+            
+            // 计算叉积（用于判断点的相对位置）
+            function cross(o, a, b) { 
+                return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); 
+            }
+            
+            // 使用 Graham 扫描算法计算凸包
+            let lower = [], upper = [];
+            
+            // 计算下凸包
+            for (let i = 0; i < points.length; i++) { 
+                let p = points[i];
+                while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) {
+                    lower.pop();
+                }
+                lower.push(p); 
+            }
+            
+            // 计算上凸包
+            for (let i = points.length - 1; i >= 0; i--) { 
+                let p = points[i]; 
+                while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) {
+                    upper.pop();
+                }
+                upper.push(p); 
+            }
+            
+            // 移除重复的端点
+            upper.pop(); 
+            lower.pop(); 
+            let hull = lower.concat(upper);
+            
+            if (hull.length < 3) return null; 
+            
+            // 生成三角形网格（用于 plist 导出）
+            let triangles = [], vertices = []; 
+            let cx = 0, cy = 0;
+            hull.forEach(function(p) { 
+                cx += p.x; 
+                cy += p.y; 
+            }); 
+            cx = Math.round(cx / hull.length); 
+            cy = Math.round(cy / hull.length);
+            
+            // vertices[0] 是中心点，vertices[1..] 是凸包顶点
+            vertices.push({x: cx, y: cy}); 
+            hull.forEach(function(p) { 
+                vertices.push(p); 
+            });
+            
+            // 生成扇形三角形（从中心点到每个凸包顶点）
+            for (let i = 1; i < vertices.length; i++) { 
+                triangles.push(0, i, (i === vertices.length - 1) ? 1 : i + 1); 
+            }
+            
+            return { triangles: triangles, vertices: vertices };
+        }
+
+        // --- 核心装箱算法 ---
+        const GRID_RES = 4;
+        function ConcaveGridPacker(maxW, maxH) {
+            this.cols = Math.ceil(maxW / GRID_RES); this.rows = Math.ceil(maxH / GRID_RES);
+            this.mask = new Uint8Array(this.cols * this.rows); this.usedCols = 0; this.usedRows = 0;
+        }
+        ConcaveGridPacker.prototype.fit = function(blocks) {
+            for (let i = 0; i < blocks.length; i++) {
+                let b = blocks[i];
+                let bestNormal = this.findBestPosition(b, false);
+                let bestRotated = b.canRotate ? this.findBestPosition(b, true) : null;
+                let choice = (bestNormal && bestRotated) ? (bestNormal.score <= bestRotated.score ? bestNormal : bestRotated) : (bestNormal || bestRotated);
+
+                if (choice) {
+                    this.place(choice.isRotated ? b.maskRot : b.maskNorm, choice.x, choice.y);
+                    b.fit = { x: choice.x * GRID_RES, y: choice.y * GRID_RES, isRotated: choice.isRotated };
+                    this.usedCols = Math.max(this.usedCols, choice.x + (choice.isRotated ? b.maskRot.maskW : b.maskNorm.maskW));
+                    this.usedRows = Math.max(this.usedRows, choice.y + (choice.isRotated ? b.maskRot.maskH : b.maskNorm.maskH));
+                } else { b.fit = null; }
+            }
+        };
+        ConcaveGridPacker.prototype.findBestPosition = function(b, isRotated) {
+            let mData = isRotated ? b.maskRot : b.maskNorm;
+            let mCols = mData.maskW, mRows = mData.maskH;
+            let maxSearchY = this.rows - mRows, maxSearchX = this.cols - mCols, bestX = -1, bestY = -1, bestScore = Infinity;
+
+            for (let y = 0; y <= maxSearchY; y++) {
+                for (let x = 0; x <= maxSearchX; x++) {
+                    let newCols = Math.max(this.usedCols, x + mCols), newRows = Math.max(this.usedRows, y + mRows);
+                    let score = Math.max(newCols, newRows) * 1000 + Math.abs(newCols - newRows) * 100 + (newCols * newRows);
+                    if (score >= bestScore) continue;
+                    if (this.checkFit(mData, x, y)) { bestScore = score; bestX = x; bestY = y; }
+                }
+            }
+            return bestX !== -1 ? { x: bestX, y: bestY, score: bestScore, isRotated: isRotated } : null;
+        };
+        ConcaveGridPacker.prototype.checkFit = function(mData, ax, ay) {
+            for (let r = 0; r < mData.maskH; r++) {
+                let bound = mData.bounds[r]; if (!bound) continue;
+                let atlasRowStart = (ay + r) * this.cols, blockRowStart = r * mData.maskW;
+                for (let c = bound.start; c <= bound.end; c++) { if (mData.data[blockRowStart + c] && this.mask[atlasRowStart + ax + c]) return false; }
+            }
+            return true;
+        };
+        ConcaveGridPacker.prototype.place = function(mData, ax, ay) {
+            for (let r = 0; r < mData.maskH; r++) {
+                let bound = mData.bounds[r]; if (!bound) continue;
+                let atlasRowStart = (ay + r) * this.cols, blockRowStart = r * mData.maskW;
+                for (let c = bound.start; c <= bound.end; c++) { if (mData.data[blockRowStart + c]) this.mask[atlasRowStart + ax + c] = 1; }
+            }
+        };
+
+        function createGridMask(imgData, drawW, drawH, trimX, trimY, origW, padding, isRotated, doConcave) {
+            let w = isRotated ? drawH : drawW, h = isRotated ? drawW : drawH;
+            let maskW = Math.ceil((w + padding) / GRID_RES), maskH = Math.ceil((h + padding) / GRID_RES);
+            let maskData = new Uint8Array(maskW * maskH);
+
+            if (doConcave) {
+                for (let y = 0; y < drawH; y++) {
+                    for (let x = 0; x < drawW; x++) {
+                        if (imgData.data[((trimY + y) * origW + (trimX + x)) * 4 + 3] > 10) {
+                            let rx = isRotated ? (drawH - 1 - y) : x, ry = isRotated ? x : y;
+                            let startX = Math.floor(rx / GRID_RES), endX = Math.floor((rx + padding) / GRID_RES);
+                            let startY = Math.floor(ry / GRID_RES), endY = Math.floor((ry + padding) / GRID_RES);
+                            for (let gy = startY; gy <= endY && gy < maskH; gy++) {
+                                for (let gx = startX; gx <= endX && gx < maskW; gx++) { maskData[gy * maskW + gx] = 1; }
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (let i = 0; i < maskData.length; i++) maskData[i] = 1;
+            }
+
+            let bounds = new Array(maskH);
+            for (let r = 0; r < maskH; r++) {
+                let start = -1, end = -1;
+                for (let c = 0; c < maskW; c++) { if (maskData[r * maskW + c]) { if (start === -1) start = c; end = c; } }
+                bounds[r] = start !== -1 ? { start: start, end: end } : null;
+            }
+            return { maskW: maskW, maskH: maskH, data: maskData, bounds: bounds };
+        }
+
+        // --- 核心渲染与导出 (Cocos Format 3 终极修复) ---
+        function performPack() {
+            packStatus.innerText = '⚙️ 自动排版运算中...'; packStatus.style.color = '#ffd166';
+            
+            const exportName = document.getElementById('setting-export-name').value.trim() || 'atlas';
+            const maxWidth = parseInt(document.getElementById('setting-max-w').value) || 2048;
+            const maxHeight = parseInt(document.getElementById('setting-max-h').value) || 2048;
+            const padding = parseInt(document.getElementById('setting-padding').value) || 0;
+            const doTrim = document.getElementById('setting-trim').checked;
+            const doRotate = document.getElementById('setting-rotate').checked;
+            const doPolygon = document.getElementById('setting-polygon').checked;
+            const doConcave = document.getElementById('setting-concave').checked;
+            const doShowBounds = document.getElementById('setting-show-bounds').checked;
+
+            setTimeout(function() {
+                try {
+                    let blocks =[];
+                    for (let i = 0; i < spritePool.length; i++) {
+                        let item = spritePool[i];
+                        const origW = item.img.naturalWidth, origH = item.img.naturalHeight;
+                        const tCanvas = document.createElement('canvas'); tCanvas.width = origW; tCanvas.height = origH;
+                        const tCtx = tCanvas.getContext('2d'); tCtx.drawImage(item.img, 0, 0);
+                        const imgData = tCtx.getImageData(0, 0, origW, origH);
+                        
+                        let minX = origW, minY = origH, maxX = 0, maxY = 0, found = false;
+                        if (doTrim) {
+                            for (let y = 0; y < origH; y++) {
+                                for (let x = 0; x < origW; x++) {
+                                    if (imgData.data[(y * origW + x) * 4 + 3] > 10) { 
+                                        if (x < minX) minX = x; if (x > maxX) maxX = x; 
+                                        if (y < minY) minY = y; if (y > maxY) maxY = y; found = true; 
+                                    }
+                                }
+                            }
+                        }
+                        if (!found || !doTrim) { minX = 0; minY = 0; maxX = Math.max(0, origW - 1); maxY = Math.max(0, origH - 1); }
+                        
+                        let trimW = maxX - minX + 1, trimH = maxY - minY + 1;
+                        let offsetX = (minX + trimW / 2) - (origW / 2), offsetY = (origH / 2) - (minY + trimH / 2); 
+
+                        // 🔧 修复：即使没有修剪，也可以生成多边形轮廓（使用整个图片或修剪后的区域）
+                        let polyData = doPolygon ? buildPolygon(imgData, origW, origH, {minX: minX, minY: minY, maxX: maxX, maxY: maxY, trimW: trimW, trimH: trimH}) : null;
+                        
+                        const cCanvas = document.createElement('canvas'); cCanvas.width = trimW; cCanvas.height = trimH;
+                        cCanvas.getContext('2d').putImageData(tCtx.getImageData(minX, minY, trimW, trimH), 0, 0);
+
+                        let maskNorm = createGridMask(imgData, trimW, trimH, minX, minY, origW, padding, false, doConcave);
+                        let maskRot = doRotate ? createGridMask(imgData, trimW, trimH, minX, minY, origW, padding, true, doConcave) : null;
+                        
+                        blocks.push({ 
+                            name: item.name, canvas: cCanvas, origW: origW, origH: origH, trimX: minX, trimY: minY, 
+                            offsetX: offsetX, offsetY: offsetY, polyData: polyData, drawW: trimW, drawH: trimH, 
+                            maskNorm: maskNorm, maskRot: maskRot, canRotate: doRotate 
+                        });
+                    }
+
+                    blocks.sort(function(a, b) { return (b.drawW * b.drawH) - (a.drawW * a.drawH); });
+                    const packer = new ConcaveGridPacker(maxWidth, maxHeight); packer.fit(blocks);
+
+                    canvas.width = actualCanvasWidth = Math.max(1, packer.usedCols * GRID_RES);
+                    canvas.height = actualCanvasHeight = Math.max(1, packer.usedRows * GRID_RES);
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    let plistFrames = '', unpackedCount = 0;
+
+                    for (let i = 0; i < blocks.length; i++) {
+                        let b = blocks[i];
+                        if (b.fit) {
+                            ctx.save();
+                            if (b.fit.isRotated) { 
+                                // 🔧 修复旋转绘制：确保旋转后图片的左上角在 (b.fit.x, b.fit.y)
+                                // 原始图片尺寸：drawW x drawH，旋转90度后变成 drawH x drawW
+                                // 旋转后图片的左上角应该在 (b.fit.x, b.fit.y)
+                                // 旋转前，原始图片的左上角(0,0)会变成旋转后图片的右上角
+                                // 所以需要将原始图片的左下角(0, drawH)放在旋转后的原点位置
+                                ctx.translate(b.fit.x, b.fit.y);
+                                ctx.rotate(90 * Math.PI / 180);
+                                ctx.drawImage(b.canvas, 0, -b.drawH);
+                            } else { 
+                                ctx.drawImage(b.canvas, b.fit.x, b.fit.y); 
+                            }
+                            ctx.restore();
+
+                            // 👑 Cocos Creator Format 3 绝杀写法，彻底解决反转报错问题
+                            const physicalW = b.fit.isRotated ? b.drawH : b.drawW;
+                            const physicalH = b.fit.isRotated ? b.drawW : b.drawH;
+                            const logicalW = b.drawW;
+                            const logicalH = b.drawH;
+                            
+                            // 🔧 修复旋转时的 textureRect 坐标和尺寸计算
+                            // Cocos Creator 3.8.7 的关键机制：当 textureRotated 为 true 时，
+                            // 引擎会自动翻转一次，所以 textureRect 中的尺寸必须填写逻辑尺寸（旋转前的尺寸）
+                            // 而不是物理尺寸（旋转后的尺寸）！如果填写物理尺寸，引擎会再次翻转导致错误
+                            // textureRect 的坐标：旋转后图片在纹理中的实际左上角位置
+                            // textureRect 的尺寸：必须使用逻辑尺寸（logicalW x logicalH），引擎会自动处理旋转
+                            let textureRectX = b.fit.x;
+                            let textureRectY = b.fit.y;
+                            
+                            // 关键修复：textureRect 的尺寸使用逻辑尺寸，而不是物理尺寸
+                            const textureRectW = logicalW;
+                            const textureRectH = logicalH;
+                            
+                            let extraPolyKeys = '';
+                            if (b.polyData) {
+                                let vertsStr = b.polyData.vertices.map(function(v) { return (v.x + b.trimX) + " " + (v.y + b.trimY); }).join(' ');
+                                let uvsStr = b.polyData.vertices.map(function(v) {
+                                    let px = v.x, py = v.y; if (b.fit.isRotated) { let t = px; px = b.drawH - py; py = t; }
+                                    return (b.fit.x + px) + " " + (b.fit.y + py);
+                                }).join(' ');
+                                extraPolyKeys = "\n            <key>triangles</key>\n            <string>" + b.polyData.triangles.join(' ') + "</string>\n            <key>vertices</key>\n            <string>" + vertsStr + "</string>\n            <key>verticesUV</key>\n            <string>" + uvsStr + "</string>";
+                            }
+                            
+                            plistFrames += "\n        <key>" + b.name + "</key>\n        <dict>\n            <key>aliases</key>\n            <array/>\n            <key>spriteOffset</key>\n            <string>{" + b.offsetX + "," + b.offsetY + "}</string>\n            <key>spriteSize</key>\n            <string>{" + logicalW + "," + logicalH + "}</string>\n            <key>spriteSourceSize</key>\n            <string>{" + b.origW + "," + b.origH + "}</string>\n            <key>textureRect</key>\n            <string>{{" + textureRectX + "," + textureRectY + "},{" + textureRectW + "," + textureRectH + "}}</string>\n            <key>textureRotated</key>\n            " + (b.fit.isRotated ? '<true/>' : '<false/>') + extraPolyKeys + "\n        </dict>";
+                        } else { unpackedCount++; }
+                    }
+
+                    // 🔧 在生成 blob 之前绘制边界框和多边形轮廓，确保预览立即显示
+                    if (doShowBounds) {
+                        ctx.save(); 
+                        ctx.strokeStyle = 'rgba(255, 50, 50, 0.9)'; 
+                        ctx.lineWidth = 1;
+                        for (let i = 0; i < blocks.length; i++) {
+                            let b = blocks[i];
+                            if (b.fit) {
+                                const rectW = b.fit.isRotated ? b.drawH : b.drawW;
+                                const rectH = b.fit.isRotated ? b.drawW : b.drawH;
+                                ctx.strokeRect(b.fit.x, b.fit.y, rectW, rectH);
+                            }
+                        }
+                        ctx.restore();
+                    }
+
+                    if (doPolygon) {
+                        for (let k = 0; k < blocks.length; k++) {
+                            let b = blocks[k];
+                            if (b.fit && b.polyData) {
+                                ctx.save(); 
+                                ctx.strokeStyle = '#06d6a0'; 
+                                ctx.lineWidth = 1.5;
+                                
+                                // 获取凸包顶点（跳过中心点 vertices[0]）
+                                const verts = b.polyData.vertices;
+                                const hullVerts = verts.slice(1); // 跳过中心点
+                                
+                                // 绘制凸包轮廓
+                                ctx.beginPath();
+                                for (let i = 0; i < hullVerts.length; i++) {
+                                    let px = hullVerts[i].x, py = hullVerts[i].y;
+                                    
+                                    // 🔧 修复旋转时的坐标转换
+                                    // 旋转90度时，需要将坐标从逻辑空间转换到纹理空间
+                                    if (b.fit.isRotated) {
+                                        // 旋转90度：原 (x, y) -> 纹理空间 (drawH - y, x)
+                                        let temp = px;
+                                        px = b.drawH - py;
+                                        py = temp;
+                                    }
+                                    
+                                    if (i === 0) {
+                                        ctx.moveTo(b.fit.x + px, b.fit.y + py);
+                                    } else {
+                                        ctx.lineTo(b.fit.x + px, b.fit.y + py);
+                                    }
+                                }
+                                // 闭合轮廓
+                                if (hullVerts.length > 0) {
+                                    let px0 = hullVerts[0].x, py0 = hullVerts[0].y;
+                                    if (b.fit.isRotated) {
+                                        let temp = px0;
+                                        px0 = b.drawH - py0;
+                                        py0 = temp;
+                                    }
+                                    ctx.lineTo(b.fit.x + px0, b.fit.y + py0);
+                                }
+                                ctx.stroke();
+                                
+                                // 绘制顶点标记
+                                ctx.fillStyle = '#ef476f'; 
+                                ctx.beginPath();
+                                for (let i = 0; i < hullVerts.length; i++) {
+                                    let px = hullVerts[i].x, py = hullVerts[i].y;
+                                    if (b.fit.isRotated) {
+                                        let temp = px;
+                                        px = b.drawH - py;
+                                        py = temp;
+                                    }
+                                    ctx.moveTo(b.fit.x + px, b.fit.y + py);
+                                    ctx.arc(b.fit.x + px, b.fit.y + py, 2.5, 0, Math.PI * 2);
+                                }
+                                ctx.fill(); 
+                                ctx.restore();
+                            }
+                        }
+                    }
+
+                    currentAtlasPlist = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>frames</key>\n    <dict>' + plistFrames + '\n    </dict>\n    <key>metadata</key>\n    <dict>\n        <key>format</key>\n        <integer>3</integer>\n        <key>realTextureFileName</key>\n        <string>' + exportName + '.png</string>\n        <key>size</key>\n        <string>{' + canvas.width + ',' + canvas.height + '}</string>\n        <key>textureFileName</key>\n        <string>' + exportName + '.png</string>\n    </dict>\n</dict>\n</plist>';
+
+                    canvas.toBlob(function(blob) {
+                        currentAtlasPng = blob;
+                        currentAtlasSizeStr = formatBytes(blob.size);
+
+                        if (!panX && !panY) centerCanvas(); else updateCanvasTransform();
+
+                        if (unpackedCount > 0) { packStatus.innerText = "⚠️ 尺寸限制！已跳过 " + unpackedCount + " 张超限图片！"; packStatus.style.color = '#ef476f'; } 
+                        else { packStatus.innerText = "🎉 实时生成完毕，完美适配 Cocos 3.8！"; packStatus.style.color = '#06d6a0'; }
+                        btnDlPng.disabled = false; btnDlPlist.disabled = false;
+                    }, 'image/png');
+
+                } catch (err) {
+                    console.error(err); packStatus.innerText = "❌ 渲染异常: " + err.message; packStatus.style.color = '#ef476f';
+                }
+            }, 50);
+        }
+
+        // --- 下载 ---
+        function downloadFile(url, filename) {
+            const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+        }
+        
+        btnDlZip.onclick = function() { 
+            if (spritePool.length === 0) return; 
+            if (!window.JSZip) { alert("⚠️ 找不到下载组件！\n请检查网络或关闭浏览器的'防止跟踪拦截'！"); return; }
+            const zip = new JSZip(); 
+            let processedCount = 0;
+            let totalCount = spritePool.length;
+            
+            // 🔧 修复：将所有图片（包括blob URL和file URL）转换为canvas再转为base64
+            function processImage(index) {
+                if (index >= totalCount) {
+                    // 所有图片处理完成，生成ZIP
+                    zip.generateAsync({type:"blob"}).then(function(content) { 
+                        downloadFile(URL.createObjectURL(content), "sprites_extracted.zip"); 
+                    }).catch(function(err) {
+                        console.error("ZIP生成失败:", err);
+                        alert("⚠️ ZIP打包失败！\n错误信息: " + err.message);
+                    });
+                    return;
+                }
+                
+                let img = spritePool[index].img;
+                let name = spritePool[index].name;
+                
+                // 如果已经是base64格式，直接使用
+                if (img.src.startsWith('data:image/')) {
+                    let base64Match = img.src.match(/^data:image\/[^;]+;base64,(.+)$/);
+                    if (base64Match) {
+                        zip.file(name, base64Match[1], {base64: true});
+                        processImage(index + 1);
+                    } else {
+                        // 转换失败，尝试通过canvas
+                        convertToBase64(img, name, index);
+                    }
+                } else {
+                    // 不是base64格式（blob URL或file URL），需要通过canvas转换
+                    convertToBase64(img, name, index);
+                }
+            }
+            
+            function convertToBase64(img, name, index) {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth || img.width;
+                    canvas.height = img.naturalHeight || img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+                    zip.file(name, base64Data, {base64: true});
+                    processImage(index + 1);
+                } catch (err) {
+                    console.error("图片转换失败:", name, err);
+                    // 跳过这张图片，继续处理下一张
+                    processImage(index + 1);
+                }
+            }
+            
+            processImage(0);
+        };
+        
+        btnDlPng.onclick = function() { downloadFile(URL.createObjectURL(currentAtlasPng), (document.getElementById('setting-export-name').value.trim() || 'atlas') + '.png'); };
+        btnDlPlist.onclick = function() { const blob = new Blob([currentAtlasPlist], { type: 'text/xml' }); downloadFile(URL.createObjectURL(blob), (document.getElementById('setting-export-name').value.trim() || 'atlas') + '.plist'); };
+
+    } catch (globalErr) {
+        alert("工具初始化发生不可逆错误！\n可能您的浏览器极度老旧，详细信息: " + globalErr.message);
+    }
+})();
+</script>
+</body>
 </html>
